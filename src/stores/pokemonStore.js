@@ -1,14 +1,16 @@
 import { defineStore } from 'pinia'
 import axios from 'axios'
 
+// Define a Pinia store to manage Pokémon data
 export const usePokemonStore = defineStore('pokemon', {
   state: () => ({
-    pokemons: [],
-    loading: false,
-    error: null,
-    detailLoading: false,
+    pokemons: [], // list of all Pokémon
+    loading: false, // flag for loading list
+    error: null, // store error message
+    detailLoading: false, // flag for loading a single Pokémon detail
   }),
   actions: {
+    // Fetch the first 100 Pokémon from the API
     async fetchPokemons() {
       this.loading = true
       this.error = null
@@ -17,6 +19,7 @@ export const usePokemonStore = defineStore('pokemon', {
           'https://pokeapi.co/api/v2/pokemon?limit=100'
         )
 
+        // For each Pokémon, also fetch its detailed info
         this.pokemons = await Promise.all(
           res.data.results.map(async (p) => {
             const details = await axios.get(p.url)
@@ -34,7 +37,7 @@ export const usePokemonStore = defineStore('pokemon', {
                   name: stat.stat.name,
                   value: stat.base_stat,
                 })),
-                // TAMBAHKAN INI:
+
                 moves: details.data.moves.map((m) => m.move.name).slice(0, 15),
                 abilities: details.data.abilities.map((a) => a.ability.name),
               },
@@ -49,6 +52,7 @@ export const usePokemonStore = defineStore('pokemon', {
       }
     },
 
+    // Fetch details for a single Pokémon by ID
     async fetchPokemonDetail(id) {
       this.detailLoading = true
       this.error = null
@@ -58,6 +62,7 @@ export const usePokemonStore = defineStore('pokemon', {
         )
         const data = response.data
 
+        // Prepare detailed Pokémon object
         const pokemonDetail = {
           id: data.id,
           name: data.name,
@@ -79,11 +84,11 @@ export const usePokemonStore = defineStore('pokemon', {
               name: stat.stat.name,
               value: stat.base_stat,
             })),
-            moves: data.moves.map((m) => m.move.name).slice(0, 15), // Limit moves
+            moves: data.moves.map((m) => m.move.name).slice(0, 15),
           },
         }
 
-        // Update pokemon di array jika sudah ada
+        // Update Pokémon in the list if it already exists
         const index = this.pokemons.findIndex((p) => p.id === parseInt(id))
         if (index !== -1) {
           this.pokemons[index] = { ...this.pokemons[index], ...pokemonDetail }
@@ -99,23 +104,22 @@ export const usePokemonStore = defineStore('pokemon', {
       }
     },
 
+    // Find a Pokémon in the list by its ID
     getPokemonById(id) {
       return this.pokemons.find((p) => p.id === parseInt(id))
     },
 
-    // NEW: Update Pokemon action
+    // Update Pokémon info (used when editing from details page)
     updatePokemon(updatedPokemon) {
       const index = this.pokemons.findIndex((p) => p.id === updatedPokemon.id)
       if (index !== -1) {
-        // Preserve original data from API, only update editable fields
         this.pokemons[index] = {
           ...this.pokemons[index],
-          name: updatedPokemon.name,
+          name: updatedPokemon.name, // update name
           info: {
             ...this.pokemons[index].info,
-            height: updatedPokemon.info.height,
-            weight: updatedPokemon.info.weight,
-            // Note: Types, stats, abilities remain from API (not editable)
+            height: updatedPokemon.info.height, // update height
+            weight: updatedPokemon.info.weight, // update weight
           },
         }
       }

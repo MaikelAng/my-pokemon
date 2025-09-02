@@ -22,10 +22,10 @@
           type="text"
           class="form-control"
           placeholder="Search Pokémon..."
-          v-model="search"
+          v-model="searchQuery"
         />
         <span class="input-group-text bg-light">
-          {{ results.length }} found
+          {{ filteredPokemons.length }} found
         </span>
       </div>
     </div>
@@ -42,55 +42,65 @@
       class="alert alert-danger d-flex justify-content-between align-items-center"
     >
       <span>{{ store.error }}</span>
-      <button class="btn-close" @click="store.error = null"></button>
+      <button class="btn-close" @click="store.clearError()"></button>
     </div>
 
     <!-- ===== Empty state if no data match the search query ===== -->
     <div
-      v-if="!store.loading && results.length === 0 && search"
+      v-if="!store.loading && filteredPokemons.length === 0 && searchQuery"
       class="text-center py-5"
     >
       <MagnifyingGlassIcon class="icon-lg text-secondary" />
-      <h5 class="text-muted mt-2">No results</h5>
-      <button class="btn btn-outline-primary mt-2" @click="search = ''">
-        Clear
+      <h5 class="text-muted mt-2">No results found for "{{ searchQuery }}"</h5>
+      <button class="btn btn-outline-primary mt-2" @click="clearSearch">
+        Clear Search
       </button>
     </div>
 
     <!-- ===== Displaying Pokémon list in cards form with image, typem and statistics ===== -->
-    <div class="row g-4">
+    <div v-if="!store.loading && filteredPokemons.length > 0" class="row g-4">
       <div
-        v-for="p in visiblePokemons"
-        :key="p.id"
+        v-for="pokemon in paginatedPokemons"
+        :key="pokemon.id"
         class="col-xl-3 col-lg-4 col-md-6 col-sm-6"
       >
-        <div class="card pokemon-card h-100" @click="openDetail(p.id)">
+        <div class="card pokemon-card h-100" @click="openDetail(pokemon.id)">
           <!-- == Pokémon image and ID == -->
           <div class="card-img-wrap">
-            <img :src="p.image" :alt="p.name" class="card-img-top" />
-            <span class="pokemon-id">#{{ String(p.id).padStart(3, '0') }}</span>
+            <img
+              :src="pokemon.image"
+              :alt="pokemon.name"
+              class="card-img-top"
+            />
+            <span class="pokemon-id"
+              >#{{ String(pokemon.id).padStart(3, '0') }}</span
+            >
           </div>
           <!-- == Pokémon name and type == -->
           <div class="card-body">
-            <h5 class="card-title text-capitalize">{{ p.name }}</h5>
+            <h5 class="card-title text-capitalize">{{ pokemon.name }}</h5>
             <div class="mb-2">
               <span
-                v-for="t in p.info.types"
-                :key="t"
+                v-for="type in pokemon.info.types"
+                :key="type"
                 class="badge type-badge"
-                :class="'type-' + t"
+                :class="'type-' + type"
               >
-                {{ t }}
+                {{ type }}
               </span>
             </div>
 
             <!-- == Pokémo HP bar == -->
-            <div v-if="p.info.stats" class="stat-box">
-              <small class="text-muted">HP: {{ p.info.stats[0]?.value }}</small>
+            <div v-if="pokemon.info.stats" class="stat-box">
+              <small class="text-muted"
+                >HP: {{ pokemon.info.stats[0]?.value }}</small
+              >
               <div class="progress">
                 <div
                   class="progress-bar bg-success"
-                  :style="{ width: (p.info.stats[0]?.value / 150) * 100 + '%' }"
+                  :style="{
+                    width: (pokemon.info.stats[0]?.value / 150) * 100 + '%',
+                  }"
                 ></div>
               </div>
             </div>
@@ -115,32 +125,42 @@
       <nav>
         <ul class="pagination custom-pagination">
           <!-- == Previous button == -->
-          <li
-            class="page-item"
-            :class="{ disabled: currentPage === 1 }"
-            @click="goToPage(currentPage - 1)"
-          >
-            <a class="page-link">Previous</a>
+          <li class="page-item" :class="{ disabled: currentPage === 1 }">
+            <a
+              class="page-link"
+              href="#"
+              @click.prevent="goToPage(currentPage - 1)"
+            >
+              <ChevronLeftIcon class="icon-sm" />
+              Previous
+            </a>
           </li>
 
           <!-- == Page numbers == -->
           <li
             class="page-item"
-            v-for="page in totalPages"
-            :key="page"
-            :class="{ active: page === currentPage }"
-            @click="goToPage(page)"
+            v-for="pageNumber in totalPages"
+            :key="pageNumber"
+            :class="{ active: pageNumber === currentPage }"
           >
-            <a class="page-link">{{ page }}</a>
+            <a class="page-link" href="#" @click.prevent="goToPage(pageNumber)">
+              {{ pageNumber }}
+            </a>
           </li>
 
           <!-- == Next button == -->
           <li
             class="page-item"
             :class="{ disabled: currentPage === totalPages }"
-            @click="goToPage(currentPage + 1)"
           >
-            <a class="page-link">Next</a>
+            <a
+              class="page-link"
+              href="#"
+              @click.prevent="goToPage(currentPage + 1)"
+            >
+              Next
+              <ChevronRightIcon class="icon-sm" />
+            </a>
           </li>
         </ul>
       </nav>
@@ -159,15 +179,15 @@ import {
   ArrowRightIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-} from '@heroicons/vue/24/solid'
+} from '@heroicons/vue/24/outline'
 
 // Store where all Pokémon data is managed (fetched once, reused everywhere)
 const store = usePokemonStore()
 const router = useRouter()
 
 // Local state
-const search = ref('') // What the user types in the search bar
-const page = ref(1) // Current page of the list
+const searchQuery = ref('') // What the user types in the search bar
+const currentPage = ref(1) // Current page of the list (changed from 'page' to avoid conflict)
 const perPage = 20 // How many Pokémon to show on each page
 
 // Load Pokémon data when the component first mounts
@@ -178,28 +198,30 @@ onMounted(() => {
 })
 
 // Filter Pokémon by name or ID based on search input
-const results = computed(() => {
-  if (!search.value) return store.pokemons
+const filteredPokemons = computed(() => {
+  if (!searchQuery.value) return store.pokemons
   return store.pokemons.filter(
     (p) =>
-      p.name.toLowerCase().includes(search.value.toLowerCase()) ||
-      p.id.toString().includes(search.value)
+      p.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+      p.id.toString().includes(searchQuery.value)
   )
 })
 
-// Slice the results so only the current page’s Pokémon show
-const visiblePokemons = computed(() => {
-  const start = (page.value - 1) * perPage
-  return results.value.slice(start, start + perPage)
+// Slice the results so only the current page's Pokémon show
+const paginatedPokemons = computed(() => {
+  const start = (currentPage.value - 1) * perPage
+  return filteredPokemons.value.slice(start, start + perPage)
 })
 
 // Total number of pages based on filtered results
-const totalPages = computed(() => Math.ceil(results.value.length / perPage))
+const totalPages = computed(() =>
+  Math.ceil(filteredPokemons.value.length / perPage)
+)
 
 // Changing to another page and scroll smoothly back to top
-function goToPage(p) {
-  if (p >= 1 && p <= totalPages.value) {
-    page.value = p
+function goToPage(pageNum) {
+  if (pageNum >= 1 && pageNum <= totalPages.value) {
+    currentPage.value = pageNum
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 }
@@ -207,6 +229,12 @@ function goToPage(p) {
 // Open detail page for a specific Pokémon
 function openDetail(id) {
   router.push({ name: 'PokemonDetails', params: { id } })
+}
+
+// Clear search query
+function clearSearch() {
+  searchQuery.value = ''
+  currentPage.value = 1
 }
 </script>
 
@@ -390,6 +418,9 @@ function openDetail(id) {
   background: #f1f3f5;
   transition: all 0.2s ease-in-out;
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.05);
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .custom-pagination .page-link:hover {

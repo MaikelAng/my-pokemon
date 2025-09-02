@@ -76,32 +76,6 @@ The production build is emitted to the `dist` folder.
 npm run preview
 ```
 
----
-
-## Project Structure (Suggested)
-
-```
-my-pokemon/
-├─ index.html
-├─ package.json
-├─ vite.config.js
-├─ /public
-├─ /src
-│  ├─ main.js
-│  ├─ App.vue
-│  ├─ /assets
-│  ├─ /components
-│  │   ├─ PokemonCard.vue
-│  │   ├─ SearchBar.vue
-│  │   └─ Loader.vue
-│  ├─ /pages
-│  │   ├─ HomePage.vue
-│  │   └─ PokemonDetail.vue
-│  ├─ /stores
-│  │   └─ pokemon.js
-└─ /node_modules
-```
-
 ## License
 
 This project is provided under your chosen license. If unspecified, consider **MIT License** for open-source usage.

@@ -197,7 +197,7 @@ const visiblePokemons = computed(() => {
 const totalPages = computed(() => Math.ceil(results.value.length / perPage))
 
 // Changing to another page and scroll smoothly back to top
-function changePage(p) {
+function goToPage(p) {
   if (p >= 1 && p <= totalPages.value) {
     page.value = p
     window.scrollTo({ top: 0, behavior: 'smooth' })
